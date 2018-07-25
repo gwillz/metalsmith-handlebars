@@ -223,3 +223,10 @@ function asyncRead(name, file) {
         })
     })
 }
+
+// export utility functions for testing
+exports.move = move;
+exports.registerPartials = registerPartials;
+exports.registerHelpers = registerHelpers;
+exports.loadLayouts = loadLayouts;
+exports.asyncRead = asyncRead;

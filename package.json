@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prepare": "true",
     "test": "nyc tape test.js | tap-spec"
   },
   "author": "Gwilyn Saunders",
