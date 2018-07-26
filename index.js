@@ -225,8 +225,9 @@ function asyncRead(name, file) {
 }
 
 // export utility functions for testing
-exports.move = move;
-exports.registerPartials = registerPartials;
-exports.registerHelpers = registerHelpers;
-exports.loadLayouts = loadLayouts;
-exports.asyncRead = asyncRead;
+module.exports.move = move;
+module.exports.registerPartials = registerPartials;
+module.exports.registerHelpers = registerHelpers;
+module.exports.loadLayouts = loadLayouts;
+module.exports.asyncRead = asyncRead;
+module.exports.Handlebars = Handlebars;
