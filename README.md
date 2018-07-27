@@ -118,10 +118,10 @@ page: 'hey.'
 
 ```js
 // helpers/titleHelper.js
-module.exports = function(context) {
+module.exports = titleHelper function() {
     return `
-        <h1>${context.page}</h1>
-        <h2>By ${context.author}</h2>
+        <h1>${this.page}</h1>
+        <h2>By ${this.author}</h2>
     `;
 }
 ```

@@ -18,14 +18,19 @@ module.exports = function main(options) {
         try {
             // filter for processing files
             const validFiles = match(Object.keys(files), options.pattern);
-            let layouts = [];
             
             if (validFiles.length === 0) {
                 throw new Error(`Pattern '${options.pattern}' did not match any files.`)
             }
             
-            // load layouts, if present
-            layouts = await loadLayouts(options.layouts, options.extension);
+            // add working directory to options
+            for (let option of ['partials', 'layouts', 'helpers']) {
+                if (!options[option]) continue;
+                options[option] = path.resolve(metalsmith._directory, options[option]);
+            }
+            
+            // load layouts, if present (else it returns [])
+            const layouts = await loadLayouts(options.layouts, options.extension);
             
             // load partials and helpers concurrently, if present
             await Promise.all([
