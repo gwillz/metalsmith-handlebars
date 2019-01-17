@@ -1,18 +1,7 @@
 # Metalsmith Handlebars
 
 Templating in Metalsmith can get messy with lots of different plugins all sort
-of trying to work together. Especially when each has their own way of doing
-things (even those written by the same author). Things clash, the ordering
-becomes very important, error messages get weird, and eventually the build
-script is a a timed-mess-bomb waiting to explode right before deploy.
-
-Let's just hope your co-workers ignore it, right?
-
-
-## It doesn't have to be like this.
-
-Metalsmith plugins are seriously the easiest things to write. So I wrote one
-that fixes all my Handlebar plugins. I hope it will be useful to you as well.
+of trying to work together.
 
 ### Things this plugin will do:
 
@@ -24,16 +13,15 @@ that fixes all my Handlebar plugins. I hope it will be useful to you as well.
 ### Things this plugin will not do:
 
 - anything but Handlebars (maybe later)
-- load lots of unnecessary dependencies (like async libraries, wtf)
-- forget to load partials (looking at you metalsmith-in-place)
+- load lots of unnecessary dependencies
+- forget to load partials
 - fail to load helpers from a parent directory
-  (*cough*-metalsmith-register-helpers-*cough*)
 - ever give you up, or ever let you down
 
 
 ## In essence
 
-This is a plugin that combines 3 or 4 other plugins, but tries to do it right.
+This is a plugin that combines 3 or 4 other plugins and tries to do it right.
 
 It's core capability is perform Handlebar templating on a multi-directory
 project. Your layout templates can be `.hbs`, your immediate pages can be

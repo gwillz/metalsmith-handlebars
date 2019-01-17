@@ -1,14 +1,18 @@
 {
-  "name": "metalsmith-handlebars",
+  "name": "@goodthnx/metalsmith-handlebars",
   "version": "1.0.0",
-  "description": "",
+  "description": "A complete Handlebars templating plugin for Metalsmith.",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "bitbucket.org/goodthnx/metalsmith-handlebars"
+  },
   "scripts": {
     "prepare": "true",
     "test": "nyc tape test.js | tap-spec"
   },
   "author": "Gwilyn Saunders",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "handlebars": "^4.0.11",
     "multimatch": "^2.1.0"
