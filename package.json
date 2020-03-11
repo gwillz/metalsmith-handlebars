@@ -4,6 +4,15 @@
   "description": "A complete Handlebars templating plugin for Metalsmith.",
   "main": "build/index.js",
   "types": "build/index.d.ts",
+  "keywords": [
+    "metalsmith",
+    "handlebars",
+    "static",
+    "plugin",
+    "template",
+    "html",
+    "hbs"
+  ],
   "repository": {
     "type": "git",
     "url": "github.com/gwillz/metalsmith-handlebars"
@@ -15,6 +24,10 @@
   },
   "author": "Gwilyn Saunders",
   "license": "MIT",
+  "files": [
+    "build",
+    "README.md"
+  ],
   "dependencies": {
     "handlebars": "^4.0.11",
     "multimatch": "^4.0.0"
