@@ -1,20 +1,30 @@
 
-const fs = require('fs')
-const path = require('path')
-const match = require('multimatch')
-const Handlebars = require('handlebars')
+import fs from 'fs';
+import path from 'path';
+import match from 'multimatch';
+import Handlebars from 'handlebars';
+import type { Plugin, Files } from 'metalsmith';
 
-module.exports = function main(options) {
-    options = Object.assign({
-        pattern: '**/*.hbs', // Only process (layouting, compiling) these files
-        extension: '.hbs',   // Only 'compile' these files
-        partials: null,      // path to partials (.hbs)
-        helpers: null,       // path to helpers (.js)
-        layouts: null,       // path to layouts (.hbs)
-    }, options)
+interface Options {
+    pattern: string;    // Only process (layouting, compiling) these files
+    extension: string;  // Only 'compile' these files
+    partials?: string;    // path to partials (.hbs)
+    helpers?: string;    // path to helpers (.js)
+    layouts?: string;    // path to layouts (.hbs)
+}
+
+export = main;
+
+function main(opts: Partial<Options>): Plugin {
     
     // plugin export
     return async function handlebars(files, metalsmith, done) {
+        const options: Options = {
+            pattern: '**/*.hbs',
+            extension: '.hbs',
+            ...opts,
+        };
+        
         try {
             // filter for processing files
             const validFiles = match(Object.keys(files), options.pattern);
@@ -23,25 +33,35 @@ module.exports = function main(options) {
                 throw new Error(`Pattern '${options.pattern}' did not match any files.`)
             }
             
-            // add working directory to options
-            for (let option of ['partials', 'layouts', 'helpers']) {
-                if (!options[option]) continue;
-                options[option] = path.resolve(metalsmith._directory, options[option]);
-            }
-            
-            // load layouts, if present (else it returns [])
-            const layouts = await loadLayouts(options.layouts, options.extension);
+            let layouts = {} as Record<string, string>;
             
             // load partials and helpers concurrently, if present
-            await Promise.all([
-                registerPartials(options.partials, options.extension),
-                registerHelpers(options.helpers),
-            ])
+            const tasks: Promise<any>[] = [];
+            
+            if (options.layouts) {
+                options.layouts = path.resolve(metalsmith.directory(), options.layouts);
+                
+                tasks.push((async () => {
+                    layouts = await loadLayouts(options.layouts!, options.extension);
+                })());
+            }
+            
+            if (options.partials) {
+                options.partials = path.resolve(metalsmith.directory(), options.partials);
+                tasks.push(registerPartials(options.partials, options.extension));
+            }
+            
+            if (options.helpers) {
+                options.helpers = path.resolve(metalsmith.directory(), options.helpers);
+                tasks.push(registerHelpers(options.helpers));
+            }
+            
+            await Promise.all(tasks);
             
             // common properties for compiling stage
             const settings = {
                 metadata: {
-                    __dirname: metalsmith._directory,
+                    __dirname: metalsmith.directory(),
                     ...metalsmith.metadata(),
                 },
                 extension: options.extension,
@@ -68,12 +88,8 @@ module.exports = function main(options) {
 /**
  * Render a template into file.contents.
  * TODO: A better name?
- * 
- * @param {string} filename
- * @param {object} file
- * @param {object} settings
  */
-function render(filename, file, settings) {
+function render(filename: string, file: any, settings: any) {
     return new Promise(resolve => {
         // separate 'contents' from context
         const {contents, ...locals} = file;
@@ -96,13 +112,8 @@ function render(filename, file, settings) {
  * If it has no layout and is not an '.hbs' file, it will pass through untouched.
  *
  * Expect this to compile() at least once, maybe twice. Hopefully not more.
- * 
- * @param {string} filename
- * @param {string} contents
- * @param {object} context
- * @param {object} settings
  */
-function compile(filename, contents, context, settings) {
+function compile(filename: string, contents: string, context: any, settings: any) {
     const {layout, ...locals} = context;
     
     // insert contents into a layout template
@@ -137,12 +148,8 @@ function compile(filename, contents, context, settings) {
 
 /**
  * Rename a file: .hbs -> .html.
- * 
- * @param {any[]} files
- * @param {string} filename
- * @param {string} extension
  */
-function move(files, filename, extension) {
+function move(files: Files, filename: string, extension: string) {
     const { name, dir, ext } = path.parse(filename);
     const newname = path.join(dir, name + '.html');
     
@@ -156,11 +163,8 @@ function move(files, filename, extension) {
 /**
  * Load a directory of partial templates (.hbs) and register with the
  * global 'Handlebars' object.
- * 
- * @param {string} directory
- * @param {string} extension
  */
-async function registerPartials(directory, extension) {
+async function registerPartials(directory: string, extension: string) {
     const filenames = await loadFiles(directory);
     
     for (let filename of filenames) {
@@ -178,7 +182,7 @@ async function registerPartials(directory, extension) {
  * Load a directory of helpers (.js) and register with the
  * global 'Handlebars' object.
  */
-async function registerHelpers(directory) {
+async function registerHelpers(directory: string) {
     const filenames = await loadFiles(directory);
     
     for (let filename of filenames) {
@@ -193,14 +197,11 @@ async function registerHelpers(directory) {
 /**
  * Load a directory of layout templates and return a key/value map as:
  * :: basename -> contents.
- * @param {string} directory
- * @param {string} extension
- * @return {Record<string, string>}
  */
-async function loadLayouts(directory, extension) {
+async function loadLayouts(directory: string, extension: string) {
     const filenames = await loadFiles(directory);
     
-    const map = {};
+    const map = {} as Record<string, string>;
     
     for (let filename of filenames) {
         const { name, ext } = path.parse(filename);
@@ -220,11 +221,8 @@ async function loadLayouts(directory, extension) {
  * @param {string} directory
  * @return {string[]}
  */
-async function loadFiles(directory) {
+async function loadFiles(directory: string): Promise<string[]> {
     return new Promise((resolve, reject) => {
-        // ignore if falsey (i.e. options not set)
-        if (!directory) resolve([]);
-        
         fs.readdir(directory, (err, files) => {
             if (err) {
                 reject(err);
@@ -239,11 +237,8 @@ async function loadFiles(directory) {
 
 /**
  * Read a file as a string.
- * 
- * @param {string} filename
- * @return {Promise<string|null>}
  */
-async function asyncRead(filepath) {
+async function asyncRead(filepath: string): Promise<string|null> {
     return new Promise((resolve, reject) => {
         fs.readFile(filepath, {encoding: 'utf-8'}, (err, contents) => {
             // silently fail on directories
@@ -263,9 +258,9 @@ async function asyncRead(filepath) {
 }
 
 // export utility functions for testing
-module.exports.move = move;
-module.exports.registerPartials = registerPartials;
-module.exports.registerHelpers = registerHelpers;
-module.exports.loadLayouts = loadLayouts;
-module.exports.asyncRead = asyncRead;
-module.exports.Handlebars = Handlebars;
+main.move = move;
+main.registerPartials = registerPartials;
+main.registerHelpers = registerHelpers;
+main.loadLayouts = loadLayouts;
+main.asyncRead = asyncRead;
+main.Handlebars = Handlebars;
