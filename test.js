@@ -3,7 +3,7 @@ const test = require('tape')
 const path = require('path')
 const fs = require('fs')
 const Metalsmith = require('metalsmith')
-const handlebars = require('./index')
+const handlebars = require('./build/index')
 
 test("Empty pattern", assert => {
     create()

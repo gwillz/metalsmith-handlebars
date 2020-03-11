@@ -1,4 +1,7 @@
 node_modules
+build
 test/dest
 .nyc_output
 .coverage
+.directory
+*.tar
