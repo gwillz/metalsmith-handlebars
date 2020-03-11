@@ -57,10 +57,10 @@ module.exports = function main(options) {
             for (let filename of validFiles) {
                 move(files, filename, options.extension);
             }
-            done();
+            done(null, files, metalsmith);
         }
         catch (err) {
-            done(err);
+            done(err, files, metalsmith);
         }
     }
 }
@@ -68,6 +68,10 @@ module.exports = function main(options) {
 /**
  * Render a template into file.contents.
  * TODO: A better name?
+ * 
+ * @param {string} filename
+ * @param {object} file
+ * @param {object} settings
  */
 function render(filename, file, settings) {
     return new Promise(resolve => {
@@ -75,7 +79,7 @@ function render(filename, file, settings) {
         const {contents, ...locals} = file;
         
         // rewrite contents from compile()
-        file.contents = new Buffer(compile(
+        file.contents = Buffer.from(compile(
             filename,
             contents.toString(),
             {...settings.metadata, ...locals}, // global + local context
@@ -92,6 +96,11 @@ function render(filename, file, settings) {
  * If it has no layout and is not an '.hbs' file, it will pass through untouched.
  *
  * Expect this to compile() at least once, maybe twice. Hopefully not more.
+ * 
+ * @param {string} filename
+ * @param {string} contents
+ * @param {object} context
+ * @param {object} settings
  */
 function compile(filename, contents, context, settings) {
     const {layout, ...locals} = context;
@@ -128,14 +137,17 @@ function compile(filename, contents, context, settings) {
 
 /**
  * Rename a file: .hbs -> .html.
+ * 
+ * @param {any[]} files
+ * @param {string} filename
+ * @param {string} extension
  */
 function move(files, filename, extension) {
-    const newname = path.join(
-        path.dirname(filename),
-        path.basename(filename, extension) + '.html',
-    );
-    // don't rename if it's indentical or not applicable
-    if (newname !== filename && path.extname(filename) === extension) {
+    const { name, dir, ext } = path.parse(filename);
+    const newname = path.join(dir, name + '.html');
+    
+    // don't rename if it's identical or not applicable
+    if (newname !== filename && ext === extension) {
         files[newname] = files[filename];
         delete files[filename];
     }
@@ -144,82 +156,108 @@ function move(files, filename, extension) {
 /**
  * Load a directory of partial templates (.hbs) and register with the
  * global 'Handlebars' object.
+ * 
+ * @param {string} directory
+ * @param {string} extension
  */
-function registerPartials(directory, extension) {
-    return loadFiles(directory, extension)
-    // perform file reads concurrently
-    .then(files => Promise.all(
-        files.map(({name, file}) => (
-            asyncRead(name, file)
-            .then(({name, contents}) => {
-                Handlebars.registerPartial(name, contents);
-            })
-        ))
-    ))
+async function registerPartials(directory, extension) {
+    const filenames = await loadFiles(directory);
+    
+    for (let filename of filenames) {
+        const { name, ext } = path.parse(filename);
+        if (ext !== extension) continue;
+        
+        const file = await asyncRead(filename);
+        if (!file) continue;
+        
+        Handlebars.registerPartial(name, file);
+    }
 }
 
 /**
  * Load a directory of helpers (.js) and register with the
  * global 'Handlebars' object.
  */
-function registerHelpers(directory) {
-    return loadFiles(directory, '.js')
-    .then(files => {
-        files.forEach(({name, file}) => {
-            Handlebars.registerHelper(name, require(file));
-        })
-    })
+async function registerHelpers(directory) {
+    const filenames = await loadFiles(directory);
+    
+    for (let filename of filenames) {
+        const { name, ext } = path.parse(filename);
+        if (ext !== ".js") continue;
+        
+        const file = require(filename);
+        Handlebars.registerHelper(name, file);
+    }
 }
 
 /**
  * Load a directory of layout templates and return a key/value map as:
  * :: basename -> contents.
+ * @param {string} directory
+ * @param {string} extension
+ * @return {Record<string, string>}
  */
-function loadLayouts(directory, extension) {
-    return loadFiles(directory, extension)
-    // read files concurrently
-    .then(files => Promise.all(
-        files.map(({name, file}) => asyncRead(name, file))
-    ))
-    // this filters directories that were ignored by asyncRead()
-    .then(files => files.filter(file => file))
-    // convert to a key/value map
-    .then(files => (
-        files.reduce((sum, {name, contents}) => (sum[name] = contents, sum), {})
-    ))
+async function loadLayouts(directory, extension) {
+    const filenames = await loadFiles(directory);
+    
+    const map = {};
+    
+    for (let filename of filenames) {
+        const { name, ext } = path.parse(filename);
+        if (ext !== extension) continue;
+        
+        const file = await asyncRead(filename);
+        if (!file) continue;
+        
+        map[name] = file;
+    }
+    
+    return map;
 }
 
 /**
- * Load a directory into a list of objects as:
- * :: {name, file}
+ * Load a directory into a list of string paths.
+ * @param {string} directory
+ * @return {string[]}
  */
-function loadFiles(directory, extension) {
-    return new Promise(resolve => {
+async function loadFiles(directory) {
+    return new Promise((resolve, reject) => {
         // ignore if falsey (i.e. options not set)
         if (!directory) resolve([]);
         
         fs.readdir(directory, (err, files) => {
-            if (err) throw err;
-            resolve(files.map(file => ({
-                name: path.basename(file, extension),
-                file: path.resolve(directory, file),
-            })))
-        })
-    })
+            if (err) {
+                reject(err);
+            }
+            else {
+                const paths = files.map(file => path.resolve(directory, file));
+                resolve(paths);
+            }
+        });
+    });
 }
 
 /**
- * Read a file, resolves with {name, contents}.
+ * Read a file as a string.
+ * 
+ * @param {string} filename
+ * @return {Promise<string|null>}
  */
-function asyncRead(name, file) {
-    return new Promise(resolve => {
-        fs.readFile(file, {encoding: 'utf-8'}, (err, contents) => {
+async function asyncRead(filepath) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(filepath, {encoding: 'utf-8'}, (err, contents) => {
             // silently fail on directories
-            if (err && err.code === 'EISDIR') {resolve(); return;}
+            if (err && err.code === 'EISDIR') {
+                resolve(null);
+            }
             // raise errors otherwise
-            if (err) throw err;
+            else if (err) {
+                reject(err);
+            }
             // all good
-            resolve({name, contents});
+            else {
+                resolve(contents);
+            }
         })
     })
 }
